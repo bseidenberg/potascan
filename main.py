@@ -3,8 +3,21 @@
 Hello World, but with more meat.
 """
 
-import wx, wxutils
+import wx, wxutils, wx.lib.scrolledpanel
 import pota
+
+BAND_STRINGS_TO_BANDS ={
+    "ALL" : None,
+    "10 Meters": pota.Band.METERS_10,
+    "12 Meters": pota.Band.METERS_12,
+    "15 Meters": pota.Band.METERS_15,
+    "17 Meters": pota.Band.METERS_17,
+    "20 Meters": pota.Band.METERS_20,
+    "30 Meters": pota.Band.METERS_30,
+    "40 Meters": pota.Band.METERS_40,
+    "80 Meters": pota.Band.METERS_80,
+    "160 Meters": pota.Band.METERS_160
+}
 
 class MainAppFrame(wx.Frame):
     """
@@ -14,34 +27,37 @@ class MainAppFrame(wx.Frame):
     def __init__(self, *args, **kw):
         # ensure the parent's __init__ is called
         super(MainAppFrame, self).__init__(*args, **kw)
+        self.SetSize(wx.Size(1200,800))
+
+            # Initialize the POTA spot controller
+        self.pc = pota.PotaSpotController()
+
 
         # create a panel in the frame
-        pnl = wx.Panel(self)
+        self.pnl = wx.Panel(self)
 
 
         # This vertical sizer holds the various sections of our program
         vbox = wx.BoxSizer(wx.VERTICAL)
-        pnl.SetSizer(vbox)
+        self.pnl.SetSizer(vbox)
 
         # This holds our spots
-        # TODO: Grid?
-        gs_spots = wx.WrapSizer(orient=wx.HORIZONTAL)
-        # FIXME: Move this to button, etc
-        pc = pota.PotaSpotController()
-        pc.refresh()
-        demo_spots = map(lambda x: self.createSpotPanel(pnl, x['activator'], x['reference'], x['frequency']),
-                          pc.getSpots(mode=pota.Mode.SSB))
-        for spot in demo_spots: 
-            gs_spots.Add(spot, 0, flag = wx.ALL, border=5)
+        # TODO: Scrolling still isn't working
+        self.sizer_spots = wx.WrapSizer(orient=wx.HORIZONTAL)
 
+        self.scrpanel = wx.ScrolledWindow(self.pnl, style=wx.VSCROLL)
+        self.scrpanel.SetScrollRate(10, 10)
 
-        vbox.Add(gs_spots, 1, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, border=10)
+        self.scrpanel.SetSizer(self.sizer_spots)
+
+        vbox.Add(self.scrpanel, 1, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, border=10)
+
 
         # Line for seperation
-        vbox.Add(wx.StaticLine(pnl), 0, wx.ALL|wx.EXPAND, 5)
+        vbox.Add(wx.StaticLine(self.pnl), 0, wx.ALL|wx.EXPAND, 5)
 
 
-        vbox.Add(self.radioSection(pnl), 0, flag=wx.ALL, border=10)
+        vbox.Add(self.radioSection(self.pnl), 0, flag=wx.ALL, border=10)
 
 
 
@@ -49,11 +65,16 @@ class MainAppFrame(wx.Frame):
         self.makeMenuBar()
 
         # TODO: Toolbar goes here
+        self.makeToolbar()
 
         # TODO: Output real status
         # and a status bar
         self.CreateStatusBar()
-        self.SetStatusText("Welcome to wxPython!")
+        self.SetStatusText("POTAScan v0.0.1")
+        self.pc.refresh()
+        self.OnSpotRedraw(None)
+
+
 
     def createSpotPanel(self, parent, call, park, freq):
         # TODO: Figure out scrolling
@@ -117,6 +138,35 @@ class MainAppFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnHello, helloItem)
         self.Bind(wx.EVT_MENU, self.OnExit,  exitItem)
         self.Bind(wx.EVT_MENU, self.OnAbout, aboutItem)
+
+    def makeToolbar(self):
+        toolbar = self.CreateToolBar(style=wx.TB_TEXT)
+        self.combo_bands = wx.ComboBox(toolbar, value="ALL", style=wx.CB_READONLY, choices=list(BAND_STRINGS_TO_BANDS))
+        refresh = toolbar.AddTool(wx.ID_REFRESH, "Reload", wx.ArtProvider.GetBitmapBundle(wx.ART_REDO))
+        toolbar.AddControl(wx.StaticText( toolbar, wx.ID_ANY, "Band:"))
+
+        toolbar.AddControl(self.combo_bands, label="Bands")
+
+        toolbar.Realize()
+        self.Bind(wx.EVT_TOOL, self.OnSpotRedraw, refresh)
+        self.Bind(wx.EVT_COMBOBOX, self.OnSpotRedraw, self.combo_bands)
+    
+    def OnSpotRedraw(self, event):
+        # We only refresh on the refresh button
+        if event is not None and event.GetEventType() == wx.wxEVT_TOOL and event.GetId() == wx.ID_REFRESH:
+            self.pc.refresh()
+        self.sizer_spots.Clear(delete_windows=True)
+        band = BAND_STRINGS_TO_BANDS[self.combo_bands.GetValue()]
+
+        demo_spots = map(lambda x: self.createSpotPanel(self.scrpanel, x['activator'], x['reference'], x['frequency']),
+                          self.pc.getSpots(mode=pota.Mode.SSB, band=band))
+        
+        for spot in demo_spots: 
+            self.sizer_spots.Add(spot, 0, flag = wx.ALL, border=5)
+        self.scrpanel.Layout()
+
+
+        
 
 
     def OnExit(self, event):

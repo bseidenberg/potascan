@@ -1,15 +1,16 @@
 Todo to make the thing work
-- Toolbar to select the filters for POTA
-- Refresh button for spots
-- Scroll Bar
-- Subclass the widget to add biz logic to the spot (and completely ignore MVC)
+- Dedupe spots - for some reason the POTA API returns many dupes
+- Scroll Bar (Sort of working, but needs more tweaking)
+- Subclass the widget to add biz logic to the spot (and completely ignore MVC??)
 - Scan logic
+- Toolbar to select the filters for POTA - BAND DONE, NEED MODE
 - All the rigctl stuff
 - Settings?
 [...] (Incomplete)
 
 Todo for the future
+- Proper MVC
 - Spot class to support future other integrations (SOTA, DXCluster, etc)
-- Remove direct use of POTA JSON
+- Remove direct use of POTA JSON from biz logic
 - Cleanup all that GUI code into something nicer
 - Settings?
