@@ -19,86 +19,104 @@ BAND_STRINGS_TO_BANDS ={
     "160 Meters": pota.Band.METERS_160
 }
 
+class SpotWidget(wx.StaticBoxSizer):
+    '''A widget to represent spots. Also contains business logic for scanning and [FIXME: Confirm?] rig interface'''
+    def __init__(self, parent, call, park, freq, *args, **kw):
+        self.box = wx.StaticBox(parent, label=call)
+        self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_LISTBOXHIGHLIGHTTEXT))
+        super().__init__(self.box, wx.VERTICAL, *args, **kw)
+        self.Add(wx.StaticText(parent, label="PARK: " + park), 0, flag=wx.ALL, border=5)
+        self.Add(wx.StaticText(parent, label="Freq: " + freq), 0, flag=wx.ALL, border=5)
+        self.freq = freq
+
+    def MakeActive(self):
+        # TODO: Color to constant, yadda yadda
+        self.box.SetBackgroundColour(wx.Colour(0, 255, 0))
+
+    def Reset(self):
+        self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_LISTBOXHIGHLIGHTTEXT))
+
+    def GetFreq(self):
+        return self.freq
+
+
 class MainAppFrame(wx.Frame):
     """
     The main window for POTAScan
     """
-    
+
     def __init__(self, *args, **kw):
         # ensure the parent's __init__ is called
         super(MainAppFrame, self).__init__(*args, **kw)
+
+        # This seems like a good default size
+        # TODO: Min Size?
         self.SetSize(wx.Size(1200,800))
 
-            # Initialize the POTA spot controller
-        self.pc = pota.PotaSpotController()
-
+        # Menu and Toolbar
+        self.makeMenuBar()
+        self.makeToolbar()
 
         # create a panel in the frame
         self.pnl = wx.Panel(self)
-
 
         # This vertical sizer holds the various sections of our program
         vbox = wx.BoxSizer(wx.VERTICAL)
         self.pnl.SetSizer(vbox)
 
         # This holds our spots
-        # TODO: Scrolling still isn't working
         self.sizer_spots = wx.WrapSizer(orient=wx.HORIZONTAL)
-
+        # Put it in a scrolled window so the spots can be scrolled
+        # TODO: Scrolling doesn't work right when the contents shrink
         self.scrpanel = wx.ScrolledWindow(self.pnl, style=wx.VSCROLL)
         self.scrpanel.SetScrollRate(10, 10)
-
         self.scrpanel.SetSizer(self.sizer_spots)
 
+        # Add to our top-level sizer
         vbox.Add(self.scrpanel, 1, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, border=10)
-
 
         # Line for seperation
         vbox.Add(wx.StaticLine(self.pnl), 0, wx.ALL|wx.EXPAND, 5)
 
-
+        # Here's where we have the controls for the radio
         vbox.Add(self.radioSection(self.pnl), 0, flag=wx.ALL, border=10)
 
-
-
-        # create a menu bar
-        self.makeMenuBar()
-
-        # TODO: Toolbar goes here
-        self.makeToolbar()
-
+        # We also want a status bar because we're a real mid-2000s looking program
         # TODO: Output real status
-        # and a status bar
         self.CreateStatusBar()
-        self.SetStatusText("POTAScan v0.0.1")
+        self.SetStatusText("POTAScan v0.0.1") # $5 says I forget to increment this
+
+        # We're done with the GUI stuff! Here's some business logic!
+        # Initialize the POTA spot controller and load the current spots
+        self.pc = pota.PotaSpotController()
         self.pc.refresh()
         self.OnSpotRedraw(None)
+        ''' This is used to track the active spot during span'''
+        self.current_spot = None
 
 
-
-    def createSpotPanel(self, parent, call, park, freq):
-        # TODO: Figure out scrolling
-        box = wx.StaticBox(parent, label=call)
-        box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_LISTBOXHIGHLIGHTTEXT))
-        spot_pnl = wx.StaticBoxSizer(box, wx.VERTICAL)
-        spot_pnl.Add(wx.StaticText(parent, label="PARK: " + park), 0, flag=wx.ALL, border=5)
-        spot_pnl.Add(wx.StaticText(parent, label="Freq: " + freq), 0, flag=wx.ALL, border=5)
-        return spot_pnl
-
-
-
+    ''' Draws the Radio Controls section of the GUI '''
     def radioSection(self, parent):
-        # Now the radio section (TODO: Refactor to function)
+        # We have stuff laid out horizontally
         hbox_radio = wx.BoxSizer(wx.HORIZONTAL)
+
+        # The interval selection
         txt_speed = wx.StaticText(parent, label="Interval: ")
         hbox_radio.Add(txt_speed, proportion=0, flag=wx.ALIGN_CENTER_VERTICAL)
         spin_interval = wx.SpinCtrl(parent, min=0, max=60, initial=10, style=wx.SP_ARROW_KEYS)
         hbox_radio.Add(spin_interval, proportion=0, flag=wx.ALL, border=5)
+
+        # And now, our scan button
         btn_scan = wxutils.Button(parent, "Scan", action=None)
         hbox_radio.Add(btn_scan, proportion=0, flag=wx.EXPAND|wx.ALL, border=5)
+
+        # TODO FIXME: Temp bind
+        self.Bind(wx.EVT_BUTTON, self.nextSpot, btn_scan)
+
         return hbox_radio
 
 
+    # TODO: This is still boilerplate from the getting started
     def makeMenuBar(self):
         """
         A menu bar is composed of menus, which are composed of menu items.
@@ -150,23 +168,43 @@ class MainAppFrame(wx.Frame):
         toolbar.Realize()
         self.Bind(wx.EVT_TOOL, self.OnSpotRedraw, refresh)
         self.Bind(wx.EVT_COMBOBOX, self.OnSpotRedraw, self.combo_bands)
-    
+
     def OnSpotRedraw(self, event):
         # We only refresh on the refresh button
         if event is not None and event.GetEventType() == wx.wxEVT_TOOL and event.GetId() == wx.ID_REFRESH:
             self.pc.refresh()
+        # TODO: Stop Scan
         self.sizer_spots.Clear(delete_windows=True)
         band = BAND_STRINGS_TO_BANDS[self.combo_bands.GetValue()]
 
-        demo_spots = map(lambda x: self.createSpotPanel(self.scrpanel, x['activator'], x['reference'], x['frequency']),
-                          self.pc.getSpots(mode=pota.Mode.SSB, band=band))
-        
-        for spot in demo_spots: 
+        # We have to maintain this as a class member because I can't make sizer.GetItems() do what I want
+        self.spots = list(map(lambda x: SpotWidget(self.scrpanel, x['activator'], x['reference'], x['frequency']),
+                          self.pc.getSpots(mode=pota.Mode.SSB, band=band)))
+
+        for spot in self.spots:
             self.sizer_spots.Add(spot, 0, flag = wx.ALL, border=5)
         self.scrpanel.Layout()
 
 
-        
+    '''Function to move to the next spot'''
+    def nextSpot(self, event):
+        # Find the next spot
+        # TODO: Test this with one spot
+        if (self.spots is None or len(self.spots) == 0):
+            return # Bail if we have nothing
+        if (self.current_spot is not None):
+            i = self.spots.index(self.current_spot)
+            next = self.spots[(i+1) % len(self.spots)]
+            # Reset the current - do it here since we know it's not None
+            self.current_spot.Reset()
+        else:
+            # We haven't started scanning - grab the first
+            next = self.spots[0]
+
+        # Go to the next spot
+        next.MakeActive()
+        # Update the state
+        self.current_spot = next;
 
 
     def OnExit(self, event):
@@ -174,6 +212,7 @@ class MainAppFrame(wx.Frame):
         self.Close(True)
 
 
+    # FIXME: Boilerplate, cleanup
     def OnHello(self, event):
         """Say hello to the user."""
         wx.MessageBox("Hello again from wxPython")
@@ -181,8 +220,9 @@ class MainAppFrame(wx.Frame):
 
     def OnAbout(self, event):
         """Display an About Dialog"""
-        wx.MessageBox("This is a wxPython Hello World sample",
-                      "About Hello World 2",
+        # TODO: Make this sync with the status bar
+        wx.MessageBox("POTAScan v0.0.1 by WY2K",
+                      "About POTAScan",
                       wx.OK|wx.ICON_INFORMATION)
 
 

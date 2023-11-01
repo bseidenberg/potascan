@@ -1,6 +1,6 @@
 import requests
 import json
-import enum 
+import enum
 
 SPOT_URL="https://api.pota.app/spot/"
 
@@ -25,13 +25,36 @@ class Band(enum.Enum):
 
 
 class PotaSpotController():
-    
+
     def __init__(self) -> None:
         self.spots = []
-    
+
     def refresh(self):
         resp = requests.get(SPOT_URL)
-        self.spots = json.loads(resp.content)
+        raw_spots = json.loads(resp.content)
+        # DEBUG MODE (Uncomment)
+        # raw_spots = json.loads(open("spots.json",'r').read())
+
+        # POTA includes more than one spot per call, if someone keeps getting spotted
+        # Just like the website, we only want the most recent.
+        #
+        # Note: If there is a call active in multiple parks (like a club call), we'll only
+        # see one. I'm OK with this - it means if there's a bad spot, it won't persist.
+        # Simillarly, if someone is on multiple frequencies, we'll also only show one.
+        # Again I'm OK with this - trying to show both will be bad if someone QSY's.
+        #
+        # The logic for this looks just like a phone interview question, I know.
+
+        # ASSUMPTION: Spot ID is a monotonically incrementing ID
+        raw_spots = sorted(raw_spots, key=lambda spot: spot["spotId"])
+        calls = set()
+        deduped_spots = []
+        for spot in raw_spots:
+            if not spot["activator"] in calls:
+                deduped_spots.append(spot)
+                calls.add(spot["activator"])
+        self.spots = deduped_spots
+
 
     def getSpots(self, mode=None, band=None):
         """
@@ -42,5 +65,5 @@ class PotaSpotController():
                 lambda x : x['mode'] == mode.value)
         band_filter = (lambda x : True) if band is None else (
                 lambda x : float(x['frequency']) >= band.value[0] and float(x['frequency']) <= band.value[1])
-        
+
         return list(filter(lambda x: mode_filter(x) and band_filter(x), self.spots))
