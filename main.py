@@ -5,6 +5,10 @@ Hello World, but with more meat.
 
 import wx, wx.lib.scrolledpanel
 import pota
+import platform
+
+def isMac():
+    return platform.system() == "Darwin"
 
 BAND_STRINGS_TO_BANDS ={
     "ALL" : None,
@@ -23,18 +27,37 @@ class SpotWidget(wx.StaticBoxSizer):
     '''A widget to represent spots. Also contains business logic for scanning and [FIXME: Confirm?] rig interface'''
     def __init__(self, parent, call, park, freq, *args, **kw):
         self.box = wx.StaticBox(parent, label=call)
-        self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_LISTBOXHIGHLIGHTTEXT))
+        self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENU))
         super().__init__(self.box, wx.VERTICAL, *args, **kw)
-        self.Add(wx.StaticText(parent, label="PARK: " + park), 0, flag=wx.ALL, border=5)
-        self.Add(wx.StaticText(parent, label="Freq: " + freq), 0, flag=wx.ALL, border=5)
+        self.labels = [
+            wx.StaticText(parent, label="PARK: " + park),
+            wx.StaticText(parent, label="Freq: " + freq)
+        ]
+        for label in self.labels:
+            label.SetForegroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENUTEXT))
+            self.Add(label, 0, flag=wx.ALL, border=5)
+
         self.freq = freq
 
     def MakeActive(self):
         # TODO: Color to constant, yadda yadda
-        self.box.SetBackgroundColour(wx.Colour(0, 255, 0))
+        self.box.SetBackgroundColour(wx.Colour(00, 0x64, 00))
+        for label in self.labels:
+            label.SetForegroundColour(wx.Colour(wx.WHITE))
+        
+        # On Linux (and Windows, if the docs are to be believed), the label
+        # is in front of the background. On mac it's not - the background is 
+        # only the inside of the box
+        if not isMac():
+            self.box.SetForegroundColour(wx.Colour(wx.WHITE))
+
 
     def Reset(self):
-        self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_LISTBOXHIGHLIGHTTEXT))
+        self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENU))
+        for label in self.labels:
+            label.SetForegroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENUTEXT))
+        self.box.SetForegroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENUTEXT))
+
 
     def GetFreq(self):
         return self.freq
