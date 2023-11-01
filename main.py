@@ -3,7 +3,7 @@
 Hello World, but with more meat.
 """
 
-import wx, wxutils, wx.lib.scrolledpanel
+import wx, wx.lib.scrolledpanel
 import pota
 
 BAND_STRINGS_TO_BANDS ={
@@ -107,7 +107,7 @@ class MainAppFrame(wx.Frame):
         hbox_radio.Add(spin_interval, proportion=0, flag=wx.ALL, border=5)
 
         # And now, our scan button
-        btn_scan = wxutils.Button(parent, "Scan", action=None)
+        btn_scan = wx.Button(parent, label="Scan")
         hbox_radio.Add(btn_scan, proportion=0, flag=wx.EXPAND|wx.ALL, border=5)
 
         # TODO FIXME: Temp bind
@@ -160,7 +160,13 @@ class MainAppFrame(wx.Frame):
     def makeToolbar(self):
         toolbar = self.CreateToolBar(style=wx.TB_TEXT)
         self.combo_bands = wx.ComboBox(toolbar, value="ALL", style=wx.CB_READONLY, choices=list(BAND_STRINGS_TO_BANDS))
-        refresh = toolbar.AddTool(wx.ID_REFRESH, "Reload", wx.ArtProvider.GetBitmapBundle(wx.ART_REDO))
+        try:
+            refresh =  wx.ArtProvider.GetBitmapBundle(wx.ART_REDO)
+        except AttributeError:
+            # Older versions of wxPython (<4.1) don't have the above
+            refresh = wx.ArtProvider.GetBitmap(wx.ART_REDO)
+
+        refresh = toolbar.AddTool(wx.ID_REFRESH, "Reload", refresh)
         toolbar.AddControl(wx.StaticText( toolbar, wx.ID_ANY, "Band:"))
 
         toolbar.AddControl(self.combo_bands, label="Bands")

@@ -33,7 +33,7 @@ class PotaSpotController():
         resp = requests.get(SPOT_URL)
         raw_spots = json.loads(resp.content)
         # DEBUG MODE (Uncomment)
-        # raw_spots = json.loads(open("spots.json",'r').read())
+        #raw_spots = json.loads(open("spots.json",'r').read())
 
         # POTA includes more than one spot per call, if someone keeps getting spotted
         # Just like the website, we only want the most recent.
