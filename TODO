@@ -1,5 +1,4 @@
 Todo to make the thing work
-- Scan timer logic (https://docs.wxpython.org/wx.Timer.html)
 - Toolbar to select the filters for POTA - BAND DONE, NEED MODE
 - All the rigctl stuff
 - Settings?

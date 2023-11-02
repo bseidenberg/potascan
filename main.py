@@ -110,12 +110,17 @@ class MainAppFrame(wx.Frame):
         self.SetStatusText("POTAScan v0.0.1") # $5 says I forget to increment this
 
         # We're done with the GUI stuff! Here's some business logic!
+        # Timer that we'll use for scanning
+        self.timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.nextSpot)
         # Initialize the POTA spot controller and load the current spots
         self.pc = pota.PotaSpotController()
         self.pc.refresh()
-        self.OnSpotRedraw(None)
         ''' This is used to track the active spot during span'''
         self.current_spot = None
+        self.OnSpotRedraw(None)
+        '''Are we currently scanning?'''
+        self.scan_active = False
 
 
     ''' Draws the Radio Controls section of the GUI '''
@@ -126,15 +131,16 @@ class MainAppFrame(wx.Frame):
         # The interval selection
         txt_speed = wx.StaticText(parent, label="Interval: ")
         hbox_radio.Add(txt_speed, proportion=0, flag=wx.ALIGN_CENTER_VERTICAL)
-        spin_interval = wx.SpinCtrl(parent, min=0, max=60, initial=10, style=wx.SP_ARROW_KEYS)
-        hbox_radio.Add(spin_interval, proportion=0, flag=wx.ALL, border=5)
+        self.spin_interval = wx.SpinCtrl(parent, min=0, max=60, initial=10, style=wx.SP_ARROW_KEYS)
+        hbox_radio.Add(self.spin_interval, proportion=0, flag=wx.ALL, border=5)
+        self.Bind(wx.EVT_SPINCTRL, self.OnIntervalSpin, self.spin_interval)
 
         # And now, our scan button
-        btn_scan = wx.Button(parent, label="Scan")
-        hbox_radio.Add(btn_scan, proportion=0, flag=wx.EXPAND|wx.ALL, border=5)
+        self.btn_scan = wx.Button(parent, label="Scan")
+        hbox_radio.Add(self.btn_scan, proportion=0, flag=wx.EXPAND|wx.ALL, border=5)
 
-        # TODO FIXME: Temp bind
-        self.Bind(wx.EVT_BUTTON, self.nextSpot, btn_scan)
+        # Button action
+        self.Bind(wx.EVT_BUTTON, self.ToggleScan, self.btn_scan)
 
         return hbox_radio
 
@@ -181,6 +187,7 @@ class MainAppFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnAbout, aboutItem)
 
     def makeToolbar(self):
+        # TODO: Toolbars look like crap on Mac - make a hbox sizer instead
         toolbar = self.CreateToolBar(style=wx.TB_TEXT)
         self.combo_bands = wx.ComboBox(toolbar, value="ALL", style=wx.CB_READONLY, choices=list(BAND_STRINGS_TO_BANDS))
         try:
@@ -199,6 +206,7 @@ class MainAppFrame(wx.Frame):
         self.Bind(wx.EVT_COMBOBOX, self.OnSpotRedraw, self.combo_bands)
 
     def OnSpotRedraw(self, event):
+        self.resetScan()
         # We only refresh on the refresh button
         if event is not None and event.GetEventType() == wx.wxEVT_TOOL and event.GetId() == wx.ID_REFRESH:
             self.pc.refresh()
@@ -214,9 +222,16 @@ class MainAppFrame(wx.Frame):
             self.sizer_spots.Add(spot, 0, flag = wx.ALL, border=5)
         self.scrpanel.Layout()
 
+    def resetScan(self):
+        self.scan_active = False
+        self.timer.Stop()
+        self.btn_scan.SetLabel("Scan") # TODO: Constant
+        if (self.current_spot is not None):
+            self.current_spot.Reset()
+            self.current_spot = None      
 
-    '''Function to move to the next spot'''
     def nextSpot(self, event):
+        '''Function to move to the next spot'''
         # Find the next spot
         # TODO: Test this with one spot
         if (self.spots is None or len(self.spots) == 0):
@@ -233,8 +248,27 @@ class MainAppFrame(wx.Frame):
         # Go to the next spot
         next.MakeActive()
         # Update the state
-        self.current_spot = next;
+        self.current_spot = next
 
+    def ToggleScan(self, event):
+        # Scan on
+        if not self.scan_active:
+            self.scan_active = True
+            self.btn_scan.SetLabel("Stop")
+            self.nextSpot(None)
+            self.timer.Start(int(self.spin_interval.GetValue()) * 1000)
+        # Scan Off
+        else:
+            self.scan_active = False
+            self.timer.Stop()
+            self.btn_scan.SetLabel("Scan") # TODO: Constant
+    
+    def OnIntervalSpin(self, event):
+        '''Resets the interval on the timer iff it's running'''
+        if self.timer.IsRunning():
+            self.timer.Stop()
+            # I can probably get the new interval from the event but eh
+            self.timer.Start(int(self.spin_interval.GetValue()) * 1000)
 
     def OnExit(self, event):
         """Close the frame, terminating the application."""
