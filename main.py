@@ -23,6 +23,11 @@ BAND_STRINGS_TO_BANDS ={
     "160 Meters": pota.Band.METERS_160
 }
 
+MODE_STRINGS_TO_MODES = {
+    "SSB": pota.Mode.SSB,
+    "CW": pota.Mode.CW
+}
+
 class SpotWidget(wx.StaticBoxSizer):
     '''A widget to represent spots. Also contains business logic for scanning and [FIXME: Confirm?] rig interface'''
     def __init__(self, parent, call, park, freq, *args, **kw):
@@ -44,9 +49,9 @@ class SpotWidget(wx.StaticBoxSizer):
         self.box.SetBackgroundColour(wx.Colour(00, 0x64, 00))
         for label in self.labels:
             label.SetForegroundColour(wx.Colour(wx.WHITE))
-        
+
         # On Linux (and Windows, if the docs are to be believed), the label
-        # is in front of the background. On mac it's not - the background is 
+        # is in front of the background. On mac it's not - the background is
         # only the inside of the box
         if not isMac():
             self.box.SetForegroundColour(wx.Colour(wx.WHITE))
@@ -189,7 +194,6 @@ class MainAppFrame(wx.Frame):
     def makeToolbar(self):
         # TODO: Toolbars look like crap on Mac - make a hbox sizer instead
         toolbar = self.CreateToolBar(style=wx.TB_TEXT)
-        self.combo_bands = wx.ComboBox(toolbar, value="ALL", style=wx.CB_READONLY, choices=list(BAND_STRINGS_TO_BANDS))
         try:
             refresh =  wx.ArtProvider.GetBitmapBundle(wx.ART_REDO)
         except AttributeError:
@@ -197,13 +201,27 @@ class MainAppFrame(wx.Frame):
             refresh = wx.ArtProvider.GetBitmap(wx.ART_REDO)
 
         refresh = toolbar.AddTool(wx.ID_REFRESH, "Reload", refresh)
-        toolbar.AddControl(wx.StaticText( toolbar, wx.ID_ANY, "Band:"))
 
+        toolbar.AddSeparator()
+
+        toolbar.AddControl(wx.StaticText( toolbar, wx.ID_ANY, "Mode:"))
+        self.combo_mode = wx.ComboBox(toolbar, value="SSB", style=wx.CB_READONLY, choices=list(MODE_STRINGS_TO_MODES))
+        toolbar.AddControl(self.combo_mode, label="Modes")
+
+        toolbar.AddSeparator()
+
+        toolbar.AddControl(wx.StaticText( toolbar, wx.ID_ANY, "Band:"))
+        self.combo_bands = wx.ComboBox(toolbar, value="ALL", style=wx.CB_READONLY, choices=list(BAND_STRINGS_TO_BANDS))
         toolbar.AddControl(self.combo_bands, label="Bands")
 
-        toolbar.Realize()
+        # All of these result in redrawing the spots
         self.Bind(wx.EVT_TOOL, self.OnSpotRedraw, refresh)
         self.Bind(wx.EVT_COMBOBOX, self.OnSpotRedraw, self.combo_bands)
+        self.Bind(wx.EVT_COMBOBOX, self.OnSpotRedraw, self.combo_mode)
+
+        toolbar.Realize()
+
+
 
     def OnSpotRedraw(self, event):
         self.resetScan()
@@ -213,10 +231,11 @@ class MainAppFrame(wx.Frame):
         # TODO: Stop Scan
         self.sizer_spots.Clear(delete_windows=True)
         band = BAND_STRINGS_TO_BANDS[self.combo_bands.GetValue()]
+        mode = MODE_STRINGS_TO_MODES[self.combo_mode.GetValue()]
 
         # We have to maintain this as a class member because I can't make sizer.GetItems() do what I want
         self.spots = list(map(lambda x: SpotWidget(self.scrpanel, x['activator'], x['reference'], x['frequency']),
-                          self.pc.getSpots(mode=pota.Mode.SSB, band=band)))
+                          self.pc.getSpots(mode=mode, band=band)))
 
         for spot in self.spots:
             self.sizer_spots.Add(spot, 0, flag = wx.ALL, border=5)
@@ -228,7 +247,7 @@ class MainAppFrame(wx.Frame):
         self.btn_scan.SetLabel("Scan") # TODO: Constant
         if (self.current_spot is not None):
             self.current_spot.Reset()
-            self.current_spot = None      
+            self.current_spot = None
 
     def nextSpot(self, event):
         '''Function to move to the next spot'''
@@ -262,7 +281,7 @@ class MainAppFrame(wx.Frame):
             self.scan_active = False
             self.timer.Stop()
             self.btn_scan.SetLabel("Scan") # TODO: Constant
-    
+
     def OnIntervalSpin(self, event):
         '''Resets the interval on the timer iff it's running'''
         if self.timer.IsRunning():
