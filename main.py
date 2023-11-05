@@ -3,9 +3,13 @@
 Hello World, but with more meat.
 """
 
-import wx, wx.lib.scrolledpanel
+import wx, wx.lib.scrolledpanel, wx.lib.intctrl
 import pota
 import platform
+import Hamlib
+
+# FIXME Global bad but eh
+global RIG
 
 def isMac():
     return platform.system() == "Darwin"
@@ -56,6 +60,10 @@ class SpotWidget(wx.StaticBoxSizer):
         if not isMac():
             self.box.SetForegroundColour(wx.Colour(wx.WHITE))
 
+        # Actually tune the rig!
+        # TODO: At least on my ICOM, if you change the VFO via CAT, it will not update
+        #       the SSB mode (USB/LSB) to the appropriate one for the new band
+        RIG.set_freq(Hamlib.RIG_VFO_CURR, int(float(self.freq) * 1e3))
 
     def Reset(self):
         self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENU))
@@ -133,18 +141,36 @@ class MainAppFrame(wx.Frame):
         # We have stuff laid out horizontally
         hbox_radio = wx.BoxSizer(wx.HORIZONTAL)
 
+        # Port Selection
+        txt_port = wx.StaticText(parent, label="rigctld port: ")
+        hbox_radio.Add(txt_port, proportion=0, flag=wx.ALIGN_CENTER_VERTICAL)
+        self.int_rigctl_port = wx.lib.intctrl.IntCtrl(parent, value=4532)
+        hbox_radio.Add(self.int_rigctl_port, proportion=0, flag=wx.EXPAND|wx.ALL, border=5)
+
+        self.btn_connect = wx.Button(parent, label="Connect")
+        hbox_radio.Add(self.btn_connect, proportion=0, flag=wx.EXPAND|wx.ALL, border=5)
+
+        # Seperate
+        # TODO: This is a hack and there ought to be a much better way to do it
+        #       Figure that out and fix it
+        hbox_radio.AddStretchSpacer(prop=5)
+        hbox_radio.Add(wx.StaticText(parent, label="               "), proportion=1)
+        hbox_radio.AddStretchSpacer(prop=5)
+
         # The interval selection
         txt_speed = wx.StaticText(parent, label="Interval: ")
         hbox_radio.Add(txt_speed, proportion=0, flag=wx.ALIGN_CENTER_VERTICAL)
-        self.spin_interval = wx.SpinCtrl(parent, min=0, max=60, initial=10, style=wx.SP_ARROW_KEYS)
+        self.spin_interval = wx.SpinCtrl(parent, min=0, max=60, initial=5, style=wx.SP_ARROW_KEYS)
         hbox_radio.Add(self.spin_interval, proportion=0, flag=wx.ALL, border=5)
         self.Bind(wx.EVT_SPINCTRL, self.OnIntervalSpin, self.spin_interval)
 
         # And now, our scan button
         self.btn_scan = wx.Button(parent, label="Scan")
+        self.btn_scan.Disable() # Disabled until we connect
         hbox_radio.Add(self.btn_scan, proportion=0, flag=wx.EXPAND|wx.ALL, border=5)
 
         # Button action
+        self.Bind(wx.EVT_BUTTON, self.OnConnect, self.btn_connect)
         self.Bind(wx.EVT_BUTTON, self.ToggleScan, self.btn_scan)
 
         return hbox_radio
@@ -221,8 +247,6 @@ class MainAppFrame(wx.Frame):
 
         toolbar.Realize()
 
-
-
     def OnSpotRedraw(self, event):
         self.resetScan()
         # We only refresh on the refresh button
@@ -240,6 +264,31 @@ class MainAppFrame(wx.Frame):
         for spot in self.spots:
             self.sizer_spots.Add(spot, 0, flag = wx.ALL, border=5)
         self.scrpanel.Layout()
+
+    def OnConnect(self, event):
+        global RIG
+        Hamlib.rig_set_debug(Hamlib.RIG_DEBUG_NONE) # Disable the very, very verbose logging that hamlib does by default
+        RIG = Hamlib.Rig(rig_model=Hamlib.RIG_MODEL_NETRIGCTL)
+        RIG.set_conf("rig_pathname", ":" + str(self.int_rigctl_port.GetValue()))
+
+        RIG.open()
+        # Were we succesfull?
+        if (RIG.error_status != 0):
+            msg = "Unable to open rig!\n\n"
+            msg += "An error occured: "
+            errorstr = Hamlib.rigerror2(RIG.error_status)
+            msg += errorstr
+            if errorstr.startswith("IO error"):
+                msg += "(wrong rigctld port or rigctld not running?)"
+            dlg=wx.MessageDialog(None, msg, "Error", wx.OK|wx.ICON_ERROR)
+            dlg.ShowModal()
+            dlg.Destroy()
+            return
+
+        # Success! Enable scan and disable ourselves
+        self.btn_connect.SetLabel("Connected!")
+        self.btn_connect.Disable()
+        self.btn_scan.Enable()
 
     def resetScan(self):
         self.scan_active = False
