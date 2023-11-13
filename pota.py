@@ -4,6 +4,7 @@ import enum
 
 SPOT_URL="https://api.pota.app/spot/"
 
+# TODO FIXME: All this radio stuff needs to get moved out
 class Mode(enum.Enum):
     SSB = "SSB"
     CW = "CW"
@@ -12,6 +13,7 @@ class Mode(enum.Enum):
 class Band(enum.Enum):
     """
     Frequency ranges for the bands. HF only, and I'm not trying to do band plans - the point is just to filter
+    Also, yes, I know, these are just US limits.
     """
     METERS_160 = (1800, 2000)
     METERS_80 = (3500, 4000)

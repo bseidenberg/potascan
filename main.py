@@ -61,9 +61,12 @@ class SpotWidget(wx.StaticBoxSizer):
             self.box.SetForegroundColour(wx.Colour(wx.WHITE))
 
         # Actually tune the rig!
-        # TODO: At least on my ICOM, if you change the VFO via CAT, it will not update
-        #       the SSB mode (USB/LSB) to the appropriate one for the new band
-        RIG.set_freq(Hamlib.RIG_VFO_CURR, int(float(self.freq) * 1e3))
+        hlfreq = int(float(self.freq) * 1e3)
+        RIG.set_freq(Hamlib.RIG_VFO_CURR, hlfreq)
+        # At least for my icom, the auto mode switching (USB/LSB) does not happen
+        # if the frequency is set via CAT - so set it explicitly
+        mode = Hamlib.RIG_MODE_USB if hlfreq > 1e7 else Hamlib.RIG_MODE_LSB
+        RIG.set_mode(mode) 
 
     def Reset(self):
         self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENU))
