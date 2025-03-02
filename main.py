@@ -16,15 +16,6 @@ import pota
 import platform
 import Hamlib
 
-# FIXME Global bad but eh
-global RIG
-
-# Spot colors
-ACTIVE_SPOT_BG = wx.Colour(0x00, 0x64, 0x00)  # Dark green
-ACTIVE_SPOT_FG = wx.Colour(wx.WHITE)
-INACTIVE_SPOT_BG = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
-INACTIVE_SPOT_FG = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
-
 # Button labels
 SCAN_START_LABEL = "Scan"
 SCAN_STOP_LABEL = "Stop"
@@ -58,6 +49,21 @@ MODE_STRINGS_TO_MODES = {
 
 class SpotWidget(wx.StaticBoxSizer):
     '''A widget to represent spots. Also contains business logic for scanning and rig interface'''
+    # Class-level attributes will be initialized when wx.App exists
+    ACTIVE_BG = None
+    ACTIVE_FG = None
+    INACTIVE_BG = None
+    INACTIVE_FG = None
+
+    @classmethod
+    def initColors(cls):
+        """Initialize the color constants after wx.App exists"""
+        if cls.ACTIVE_BG is None:  # Only initialize once
+            cls.ACTIVE_BG = wx.Colour(0x00, 0x64, 0x00)  # Dark green
+            cls.ACTIVE_FG = wx.Colour(wx.WHITE)
+            cls.INACTIVE_BG = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+            cls.INACTIVE_FG = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
+
     def __init__(self, parent, call, park, freq, rig=None, *args, **kw):
         self.box = wx.StaticBox(parent, label=call)
         self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENU))
@@ -74,15 +80,15 @@ class SpotWidget(wx.StaticBoxSizer):
         self.rig = rig
 
     def MakeActive(self):
-        self.box.SetBackgroundColour(ACTIVE_SPOT_BG)
+        self.box.SetBackgroundColour(self.ACTIVE_BG)
         for label in self.labels:
-            label.SetForegroundColour(ACTIVE_SPOT_FG)
+            label.SetForegroundColour(self.ACTIVE_FG)
 
         # On Linux (and Windows, if the docs are to be believed), the label
         # is in front of the background. On mac it's not - the background is
         # only the inside of the box
         if not isMac():
-            self.box.SetForegroundColour(ACTIVE_SPOT_FG)
+            self.box.SetForegroundColour(self.ACTIVE_FG)
 
         if self.rig:
             # Actually tune the rig!
@@ -112,6 +118,12 @@ class MainAppFrame(wx.Frame):
     def __init__(self, *args, **kw):
         # ensure the parent's __init__ is called
         super(MainAppFrame, self).__init__(*args, **kw)
+
+        # Rig object
+        self.rig = None
+
+        # Initialize SpotWidget colors after wx is initialized
+        SpotWidget.initColors()
 
         # This seems like a good default size
         # TODO: Min Size?
@@ -163,7 +175,6 @@ class MainAppFrame(wx.Frame):
         '''Are we currently scanning?'''
         self.scan_active = False
 
-        self.rig = None  # Initialize rig as None
 
     def radioSection(self, parent):
         ''' Draws the Radio Controls section of the GUI '''
