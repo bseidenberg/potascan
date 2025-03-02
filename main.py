@@ -34,6 +34,7 @@ APP_VERSION = "0.1.0"
 
 # Window defaults
 DEFAULT_WINDOW_SIZE = (1200, 800)
+DEFAULT_SCAN_INTERVAL = 5
 
 def isMac():
     return platform.system() == "Darwin"
@@ -209,7 +210,7 @@ class MainAppFrame(wx.Frame):
         # The interval selection
         txt_speed = wx.StaticText(parent, label="Interval: ")
         hbox_radio.Add(txt_speed, proportion=0, flag=wx.ALIGN_CENTER_VERTICAL)
-        self.spin_interval = wx.SpinCtrl(parent, min=0, max=60, initial=5, style=wx.SP_ARROW_KEYS)
+        self.spin_interval = wx.SpinCtrl(parent, min=0, max=60, initial=DEFAULT_SCAN_INTERVAL, style=wx.SP_ARROW_KEYS)
         hbox_radio.Add(self.spin_interval, proportion=0, flag=wx.ALL, border=5)
         self.Bind(wx.EVT_SPINCTRL, self.OnIntervalSpin, self.spin_interval)
 
