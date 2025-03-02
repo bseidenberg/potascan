@@ -19,6 +19,22 @@ import Hamlib
 # FIXME Global bad but eh
 global RIG
 
+# Spot colors
+ACTIVE_SPOT_BG = wx.Colour(0x00, 0x64, 0x00)  # Dark green
+ACTIVE_SPOT_FG = wx.Colour(wx.WHITE)
+INACTIVE_SPOT_BG = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+INACTIVE_SPOT_FG = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
+
+# Button labels
+SCAN_START_LABEL = "Scan"
+SCAN_STOP_LABEL = "Stop"
+
+# Version info
+APP_VERSION = "0.1.0"
+
+# Window defaults
+DEFAULT_WINDOW_SIZE = (1200, 800)
+
 def isMac():
     return platform.system() == "Darwin"
 
@@ -41,7 +57,7 @@ MODE_STRINGS_TO_MODES = {
 }
 
 class SpotWidget(wx.StaticBoxSizer):
-    '''A widget to represent spots. Also contains business logic for scanning and [FIXME: Confirm?] rig interface'''
+    '''A widget to represent spots. Also contains business logic for scanning and rig interface'''
     def __init__(self, parent, call, park, freq, *args, **kw):
         self.box = wx.StaticBox(parent, label=call)
         self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENU))
@@ -58,15 +74,15 @@ class SpotWidget(wx.StaticBoxSizer):
 
     def MakeActive(self):
         # TODO: Color to constant, yadda yadda
-        self.box.SetBackgroundColour(wx.Colour(00, 0x64, 00))
+        self.box.SetBackgroundColour(ACTIVE_SPOT_BG)
         for label in self.labels:
-            label.SetForegroundColour(wx.Colour(wx.WHITE))
+            label.SetForegroundColour(ACTIVE_SPOT_FG)
 
         # On Linux (and Windows, if the docs are to be believed), the label
         # is in front of the background. On mac it's not - the background is
         # only the inside of the box
         if not isMac():
-            self.box.SetForegroundColour(wx.Colour(wx.WHITE))
+            self.box.SetForegroundColour(ACTIVE_SPOT_FG)
 
         # Actually tune the rig!
         hlfreq = int(float(self.freq) * 1e3)
@@ -98,7 +114,7 @@ class MainAppFrame(wx.Frame):
 
         # This seems like a good default size
         # TODO: Min Size?
-        self.SetSize(wx.Size(1200,800))
+        self.SetSize(wx.Size(DEFAULT_WINDOW_SIZE))
 
         # Menu and Toolbar
         self.makeMenuBar()
@@ -131,7 +147,7 @@ class MainAppFrame(wx.Frame):
         # We also want a status bar because we're a real mid-2000s looking program
         # TODO: Output real status
         self.CreateStatusBar()
-        self.SetStatusText("POTAScan v0.0.1") # $5 says I forget to increment this
+        self.SetStatusText("POTAScan v" + APP_VERSION)
 
         # We're done with the GUI stuff! Here's some business logic!
         # Timer that we'll use for scanning
@@ -176,7 +192,7 @@ class MainAppFrame(wx.Frame):
         self.Bind(wx.EVT_SPINCTRL, self.OnIntervalSpin, self.spin_interval)
 
         # And now, our scan button
-        self.btn_scan = wx.Button(parent, label="Scan")
+        self.btn_scan = wx.Button(parent, label=SCAN_START_LABEL)
         self.btn_scan.Disable() # Disabled until we connect
         hbox_radio.Add(self.btn_scan, proportion=0, flag=wx.EXPAND|wx.ALL, border=5)
 
@@ -187,7 +203,6 @@ class MainAppFrame(wx.Frame):
         return hbox_radio
 
 
-    # TODO: This is still boilerplate from the getting started
     def makeMenuBar(self):
         """
         A menu bar is composed of menus, which are composed of menu items.
@@ -197,11 +212,6 @@ class MainAppFrame(wx.Frame):
 
         # Make a file menu with Hello and Exit items
         fileMenu = wx.Menu()
-        # The "\t..." syntax defines an accelerator key that also triggers
-        # the same event
-        helloItem = fileMenu.Append(-1, "&Hello...\tCtrl-H",
-                "Help string shown in status bar for this menu item")
-        fileMenu.AppendSeparator()
         # When using a stock ID we don't need to specify the menu item's
         # label
         exitItem = fileMenu.Append(wx.ID_EXIT)
@@ -224,7 +234,6 @@ class MainAppFrame(wx.Frame):
         # Finally, associate a handler function with the EVT_MENU event for
         # each of the menu items. That means that when that menu item is
         # activated then the associated handler function will be called.
-        self.Bind(wx.EVT_MENU, self.OnHello, helloItem)
         self.Bind(wx.EVT_MENU, self.OnExit,  exitItem)
         self.Bind(wx.EVT_MENU, self.OnAbout, aboutItem)
 
@@ -304,7 +313,7 @@ class MainAppFrame(wx.Frame):
     def resetScan(self):
         self.scan_active = False
         self.timer.Stop()
-        self.btn_scan.SetLabel("Scan") # TODO: Constant
+        self.btn_scan.SetLabel(SCAN_START_LABEL)
         if (self.current_spot is not None):
             self.current_spot.Reset()
             self.current_spot = None
@@ -333,14 +342,14 @@ class MainAppFrame(wx.Frame):
         # Scan on
         if not self.scan_active:
             self.scan_active = True
-            self.btn_scan.SetLabel("Stop")
+            self.btn_scan.SetLabel(SCAN_STOP_LABEL)
             self.nextSpot(None)
             self.timer.Start(int(self.spin_interval.GetValue()) * 1000)
         # Scan Off
         else:
             self.scan_active = False
             self.timer.Stop()
-            self.btn_scan.SetLabel("Scan") # TODO: Constant
+            self.btn_scan.SetLabel(SCAN_START_LABEL)
 
     def OnIntervalSpin(self, event):
         '''Resets the interval on the timer iff it's running'''
@@ -353,17 +362,10 @@ class MainAppFrame(wx.Frame):
         """Close the frame, terminating the application."""
         self.Close(True)
 
-
-    # FIXME: Boilerplate, cleanup
-    def OnHello(self, event):
-        """Say hello to the user."""
-        wx.MessageBox("Hello again from wxPython")
-
-
     def OnAbout(self, event):
         """Display an About Dialog"""
         # TODO: Make this sync with the status bar
-        wx.MessageBox("POTAScan v0.0.1 by WY2K",
+        wx.MessageBox("POTAScan v" + APP_VERSION + " by WY2K",
                       "About POTAScan",
                       wx.OK|wx.ICON_INFORMATION)
 
@@ -372,6 +374,6 @@ if __name__ == '__main__':
     # When this module is run (not imported) then create the app, the
     # frame, show it, and start the event loop.
     app = wx.App()
-    frm = MainAppFrame(None, title='POTAScan v0.1')
+    frm = MainAppFrame(None, title='POTAScan v' + APP_VERSION)
     frm.Show()
     app.MainLoop()
