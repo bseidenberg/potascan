@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 """
-Hello World, but with more meat.
+POTAScan is a utility to download spots from POTA and automatically tune a radio to them, moving to the next spot every N seconds.
+
+-- Benjamin, WY2K
+
+
+Copyright 2023-2024 Benjamin Seidenberg
+All Rights Reserved
+
+(For now - I plan to open source this soon.)
 """
 
 import wx, wx.lib.scrolledpanel, wx.lib.intctrl
@@ -139,8 +147,8 @@ class MainAppFrame(wx.Frame):
         self.scan_active = False
 
 
-    ''' Draws the Radio Controls section of the GUI '''
     def radioSection(self, parent):
+        ''' Draws the Radio Controls section of the GUI '''
         # We have stuff laid out horizontally
         hbox_radio = wx.BoxSizer(wx.HORIZONTAL)
 
