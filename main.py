@@ -58,7 +58,7 @@ MODE_STRINGS_TO_MODES = {
 
 class SpotWidget(wx.StaticBoxSizer):
     '''A widget to represent spots. Also contains business logic for scanning and rig interface'''
-    def __init__(self, parent, call, park, freq, *args, **kw):
+    def __init__(self, parent, call, park, freq, rig=None, *args, **kw):
         self.box = wx.StaticBox(parent, label=call)
         self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENU))
         super().__init__(self.box, wx.VERTICAL, *args, **kw)
@@ -71,9 +71,9 @@ class SpotWidget(wx.StaticBoxSizer):
             self.Add(label, 0, flag=wx.ALL, border=5)
 
         self.freq = freq
+        self.rig = rig
 
     def MakeActive(self):
-        # TODO: Color to constant, yadda yadda
         self.box.SetBackgroundColour(ACTIVE_SPOT_BG)
         for label in self.labels:
             label.SetForegroundColour(ACTIVE_SPOT_FG)
@@ -84,13 +84,14 @@ class SpotWidget(wx.StaticBoxSizer):
         if not isMac():
             self.box.SetForegroundColour(ACTIVE_SPOT_FG)
 
-        # Actually tune the rig!
-        hlfreq = int(float(self.freq) * 1e3)
-        RIG.set_freq(Hamlib.RIG_VFO_CURR, hlfreq)
-        # At least for my icom, the auto mode switching (USB/LSB) does not happen
-        # if the frequency is set via CAT - so set it explicitly
-        mode = Hamlib.RIG_MODE_USB if hlfreq > 1e7 else Hamlib.RIG_MODE_LSB
-        RIG.set_mode(mode) 
+        if self.rig:
+            # Actually tune the rig!
+            hlfreq = int(float(self.freq) * 1e3)
+            self.rig.set_freq(Hamlib.RIG_VFO_CURR, hlfreq)
+            # At least for my icom, the auto mode switching (USB/LSB) does not happen
+            # if the frequency is set via CAT - so set it explicitly
+            mode = Hamlib.RIG_MODE_USB if hlfreq > 1e7 else Hamlib.RIG_MODE_LSB
+            self.rig.set_mode(mode) 
 
     def Reset(self):
         self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENU))
@@ -162,6 +163,7 @@ class MainAppFrame(wx.Frame):
         '''Are we currently scanning?'''
         self.scan_active = False
 
+        self.rig = None  # Initialize rig as None
 
     def radioSection(self, parent):
         ''' Draws the Radio Controls section of the GUI '''
@@ -277,8 +279,10 @@ class MainAppFrame(wx.Frame):
         band = BAND_STRINGS_TO_BANDS[self.combo_bands.GetValue()]
         mode = MODE_STRINGS_TO_MODES[self.combo_mode.GetValue()]
 
-        # We have to maintain this as a class member because I can't make sizer.GetItems() do what I want
-        self.spots = list(map(lambda x: SpotWidget(self.scrpanel, x['activator'], x['reference'], x['frequency']),
+        # Pass the rig instance to each SpotWidget
+        self.spots = list(map(lambda x: SpotWidget(self.scrpanel, x['activator'], 
+                                                  x['reference'], x['frequency'], 
+                                                  rig=self.rig),
                           self.pc.getSpots(mode=mode, band=band)))
 
         for spot in self.spots:
@@ -286,17 +290,16 @@ class MainAppFrame(wx.Frame):
         self.scrpanel.Layout()
 
     def OnConnect(self, event):
-        global RIG
-        Hamlib.rig_set_debug(Hamlib.RIG_DEBUG_NONE) # Disable the very, very verbose logging that hamlib does by default
-        RIG = Hamlib.Rig(rig_model=Hamlib.RIG_MODEL_NETRIGCTL)
-        RIG.set_conf("rig_pathname", ":" + str(self.int_rigctl_port.GetValue()))
+        Hamlib.rig_set_debug(Hamlib.RIG_DEBUG_NONE)
+        self.rig = Hamlib.Rig(rig_model=Hamlib.RIG_MODEL_NETRIGCTL)
+        self.rig.set_conf("rig_pathname", ":" + str(self.int_rigctl_port.GetValue()))
 
-        RIG.open()
-        # Were we succesfull?
-        if (RIG.error_status != 0):
+        self.rig.open()
+        # Were we successful?
+        if (self.rig.error_status != 0):
             msg = "Unable to open rig!\n\n"
             msg += "An error occured: "
-            errorstr = Hamlib.rigerror2(RIG.error_status)
+            errorstr = Hamlib.rigerror2(self.rig.error_status)
             msg += errorstr
             if errorstr.startswith("IO error"):
                 msg += "(wrong rigctld port or rigctld not running?)"
@@ -360,11 +363,12 @@ class MainAppFrame(wx.Frame):
 
     def OnExit(self, event):
         """Close the frame, terminating the application."""
+        if self.rig:
+            self.rig.close()
         self.Close(True)
 
     def OnAbout(self, event):
         """Display an About Dialog"""
-        # TODO: Make this sync with the status bar
         wx.MessageBox("POTAScan v" + APP_VERSION + " by WY2K",
                       "About POTAScan",
                       wx.OK|wx.ICON_INFORMATION)
