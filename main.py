@@ -23,7 +23,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import wx, wx.lib.scrolledpanel, wx.lib.intctrl
 import pota
 import platform
-import Hamlib
+from cat_interface import CAT
 
 # Button labels
 SCAN_START_LABEL = "Scan"
@@ -100,13 +100,15 @@ class SpotWidget(wx.StaticBoxSizer):
         if not isMac():
             self.box.SetForegroundColour(self.ACTIVE_FG)
 
-        if self.rig:
+        if self.rig and self.rig.online:
             # Actually tune the rig!
-            hlfreq = int(float(self.freq) * 1e3)
-            self.rig.set_freq(Hamlib.RIG_VFO_CURR, hlfreq)
+            freq_hz = int(float(self.freq) * 1000)           
+            # Set the frequency
+            self.rig.set_vfo(str(freq_hz))
+            
             # At least for my icom, the auto mode switching (USB/LSB) does not happen
             # if the frequency is set via CAT - so set it explicitly
-            mode = Hamlib.RIG_MODE_USB if hlfreq > 1e7 else Hamlib.RIG_MODE_LSB
+            mode = "USB" if freq_hz > 10000000 else "LSB"
             self.rig.set_mode(mode) 
 
     def Reset(self):
@@ -311,19 +313,13 @@ class MainAppFrame(wx.Frame):
         self.scrpanel.Layout()
 
     def OnConnect(self, event):
-        Hamlib.rig_set_debug(Hamlib.RIG_DEBUG_NONE)
-        self.rig = Hamlib.Rig(rig_model=Hamlib.RIG_MODEL_NETRIGCTL)
-        self.rig.set_conf("rig_pathname", ":" + str(self.int_rigctl_port.GetValue()))
-
-        self.rig.open()
-        # Were we successful?
-        if (self.rig.error_status != 0):
+        port = self.int_rigctl_port.GetValue()
+        self.rig = CAT("rigctld", "127.0.0.1", port) # type: ignore
+        # Check if connection was successful
+        if not self.rig.online:
             msg = "Unable to open rig!\n\n"
-            msg += "An error occured: "
-            errorstr = Hamlib.rigerror2(self.rig.error_status)
-            msg += errorstr
-            if errorstr.startswith("IO error"):
-                msg += "(wrong rigctld port or rigctld not running?)"
+            msg += "An error occurred: IO error "
+            msg += "(wrong rigctld port or rigctld not running?)"
             dlg=wx.MessageDialog(None, msg, "Error", wx.OK|wx.ICON_ERROR)
             dlg.ShowModal()
             dlg.Destroy()
@@ -333,6 +329,9 @@ class MainAppFrame(wx.Frame):
         self.btn_connect.SetLabel("Connected!")
         self.btn_connect.Disable()
         self.btn_scan.Enable()
+
+        # Redraw spots to pass the rig to them
+        self.OnSpotRedraw(None)
 
     def resetScan(self):
         self.scan_active = False
@@ -384,8 +383,6 @@ class MainAppFrame(wx.Frame):
 
     def OnExit(self, event):
         """Close the frame, terminating the application."""
-        if self.rig:
-            self.rig.close()
         self.Close(True)
 
     def OnAbout(self, event):
