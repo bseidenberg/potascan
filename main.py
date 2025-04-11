@@ -74,7 +74,7 @@ class SpotWidget(wx.StaticBoxSizer):
             cls.INACTIVE_BG = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
             cls.INACTIVE_FG = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
 
-    def __init__(self, parent, call, park, freq, rig=None, *args, **kw):
+    def __init__(self, parent, call, park, freq, rig=None, mode=None, *args, **kw):
         self.box = wx.StaticBox(parent, label=call)
         self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENU))
         super().__init__(self.box, wx.VERTICAL, *args, **kw)
@@ -88,6 +88,7 @@ class SpotWidget(wx.StaticBoxSizer):
 
         self.freq = freq
         self.rig = rig
+        self.mode = mode
 
     def MakeActive(self):
         self.box.SetBackgroundColour(self.ACTIVE_BG)
@@ -106,10 +107,17 @@ class SpotWidget(wx.StaticBoxSizer):
             # Set the frequency
             self.rig.set_vfo(str(freq_hz))
             
-            # At least for my icom, the auto mode switching (USB/LSB) does not happen
-            # if the frequency is set via CAT - so set it explicitly
-            mode = "USB" if freq_hz > 10000000 else "LSB"
-            self.rig.set_mode(mode) 
+            mode = ""
+            # Only set USB/LSB mode if the current mode is SSB
+            if self.mode == "SSB":
+                # At least for my icom, the auto mode switching (USB/LSB) does not happen
+                # if the frequency is set via CAT - so set it explicitly
+                mode = "USB" if freq_hz > 10000000 else "LSB"
+            elif self.mode == "CW":
+                mode = "CW"
+            self.rig.set_mode(mode)
+
+
 
     def Reset(self):
         self.box.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_MENU))
@@ -305,7 +313,7 @@ class MainAppFrame(wx.Frame):
         # Pass the rig instance to each SpotWidget
         self.spots = list(map(lambda x: SpotWidget(self.scrpanel, x['activator'], 
                                                   x['reference'], x['frequency'], 
-                                                  rig=self.rig),
+                                                  rig=self.rig, mode=self.combo_mode.GetValue()),
                           self.pc.getSpots(mode=mode, band=band)))
 
         for spot in self.spots:
